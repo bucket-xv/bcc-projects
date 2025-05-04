@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.cpp": "cpp",
+        "if_ether.h": "c",
+        "bpf.h": "c",
+        "udp.h": "c"
+    }
+}

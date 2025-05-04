@@ -1,2 +1,2 @@
-bcc>=0.24.0
-prettytable>=3.0.0 
+bcc
+prettytable
