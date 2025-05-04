@@ -6,6 +6,7 @@ import argparse
 from pyroute2 import IPRoute
 import time
 import sys
+import ctypes
 
 # Compile and load BPF program
 b = BPF(src_file="traffic.c", debug=0)
@@ -18,15 +19,21 @@ def print_ip(ip):
 class EventHandler:
     def __init__(self):
         self.output_text = ""
+        self.count = 0
 
     def process_event(self, cpu, data, size):
-        event = b["events"].event(data)
-        self.output_text += f"{datetime.now().strftime('%H:%M:%S')} | "
-        self.output_text += f"SRC: {print_ip(event.saddr):15} | "
-        self.output_text += f"DST: {print_ip(event.daddr):15} | "
-        self.output_text += f"SPORT: {event.sport:5} | "
-        self.output_text += f"DPORT: {event.dport:5} | "
-        self.output_text += f"PROTO: {'TCP' if event.protocol == 6 else 'UDP'}\n"
+        # 计算数据包数量
+        num_packets = size // ctypes.sizeof(Data)
+        events = (Data * num_packets).from_buffer_copy(data)
+        
+        for event in events:
+            self.count += 1
+            self.output_text += f"{datetime.now().strftime('%H:%M:%S')} | "
+            self.output_text += f"SRC: {print_ip(event.saddr):15} | "
+            self.output_text += f"DST: {print_ip(event.daddr):15} | "
+            self.output_text += f"SPORT: {event.sport:5} | "
+            self.output_text += f"DPORT: {event.dport:5} | "
+            self.output_text += f"PROTO: {'TCP' if event.protocol == 6 else 'UDP'}\n"
     
     def print_output(self):
         print(self.output_text)
@@ -35,7 +42,7 @@ class EventHandler:
 def main():
     parser = argparse.ArgumentParser(description="traffic monitor")
     parser.add_argument("-i", "--interface", default="enp24s0f0", help="network interface to monitor")
-    parser.add_argument("-o", "--output", default="output.log", help="output file")
+    # parser.add_argument("-o", "--output", default="output.log", help="output file")
     args = parser.parse_args()
 
     try:
@@ -67,15 +74,17 @@ def main():
         # Start monitoring traffic
         handler = EventHandler()
         b["events"].open_perf_buffer(handler.process_event)
-        start_time = time.time()
+        count = 0
         while True:
             b.perf_buffer_poll()
-            if time.time() - start_time > 15:
-                handler.print_output()
+            count += 1
+            if count > 2:
                 break
     except KeyboardInterrupt:
         print("Detaching BPF program...")
     finally:
+        handler.print_output()
+        print(f"Total events: {handler.count}")
         # Cleanup: Remove tc rules
         if "idx" in locals():
             try:

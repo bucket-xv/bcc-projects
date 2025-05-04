@@ -11,6 +11,8 @@ typedef __u32 u32;
 typedef __u16 u16;
 typedef __u8 u8;
 
+#define AGGR_SIZE 16
+
 struct data_t
 {
     u32 saddr;
@@ -20,7 +22,43 @@ struct data_t
     u8 protocol;
 };
 
+struct agg_data_t
+{
+    struct data_t items[AGGR_SIZE];
+    u32 count;
+};
+
 BPF_PERF_OUTPUT(events);
+BPF_PERCPU_ARRAY(agg_buffer, struct agg_data_t, 1);
+
+static inline void submit_aggregated_data(struct __sk_buff *skb, struct agg_data_t *buf)
+{
+    u32 length = buf->count * sizeof(struct data_t);
+    if (length > 0 && length <= AGGR_SIZE)
+    {
+        events.perf_submit(skb, buf->items, length);
+        buf->count = 0;
+    }
+}
+
+static inline void add_to_buffer(struct __sk_buff *skb, struct data_t *new_data)
+{
+    int idx = 0;
+    struct agg_data_t *buf = agg_buffer.lookup(&idx);
+    if (!buf)
+        return;
+
+    if (buf->count < AGGR_SIZE)
+    {
+        buf->items[buf->count] = *new_data;
+        buf->count++;
+    }
+
+    if (buf->count == AGGR_SIZE)
+    {
+        submit_aggregated_data(skb, buf);
+    }
+}
 
 int tc_ingress(struct __sk_buff *skb)
 {
@@ -60,7 +98,7 @@ int tc_ingress(struct __sk_buff *skb)
         new_data.dport = ntohs(udp->dest);
     }
 
-    events.perf_submit(skb, &new_data, sizeof(new_data));
+    add_to_buffer(skb, &new_data);
     return TC_ACT_OK;
 }
 
@@ -102,6 +140,6 @@ int tc_egress(struct __sk_buff *skb)
         new_data.dport = ntohs(udp->dest);
     }
 
-    events.perf_submit(skb, &new_data, sizeof(new_data));
+    add_to_buffer(skb, &new_data);
     return TC_ACT_OK;
 }
