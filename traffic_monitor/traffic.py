@@ -78,7 +78,11 @@ def main():
         while True:
             b.perf_buffer_poll()
             count += 1
+<<<<<<< HEAD
             if count > 2:
+=======
+            if count > 20:
+>>>>>>> 671ebef6be139005d7ca1888b9da9c8f895b2424
                 break
     except KeyboardInterrupt:
         print("Detaching BPF program...")

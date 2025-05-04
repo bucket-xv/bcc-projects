@@ -1,2 +1,2 @@
 prettytable
-pyroute2
+pyroute2==0.6.13
