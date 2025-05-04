@@ -60,7 +60,7 @@ int tc_ingress(struct __sk_buff *skb)
         new_data.dport = ntohs(udp->dest);
     }
 
-    events.perf_submit_skb(skb, sizeof(new_data), &new_data, 0);
+    events.perf_submit(skb, &new_data, sizeof(new_data));
     return TC_ACT_OK;
 }
 
@@ -102,6 +102,6 @@ int tc_egress(struct __sk_buff *skb)
         new_data.dport = ntohs(udp->dest);
     }
 
-    events.perf_submit_skb(skb, sizeof(new_data), &new_data, 0);
+    events.perf_submit(skb, &new_data, sizeof(new_data));
     return TC_ACT_OK;
 }

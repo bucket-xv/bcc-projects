@@ -3,42 +3,42 @@
 from bcc import BPF
 from datetime import datetime
 import argparse
-from prettytable import PrettyTable
 from pyroute2 import IPRoute
+import time
+import sys
+
+# Compile and load BPF program
+b = BPF(src_file="traffic.c", debug=0)
 ipr = IPRoute()
 
 def print_ip(ip):
     return ".".join([str(ip >> 24 & 0xff), str(ip >> 16 & 0xff), 
-                    str(ip >> 8 & 0xff), str(ip & 0xff)])
+             str(ip >> 8 & 0xff), str(ip & 0xff)])
 
-def process_event(cpu, data, size):
-    event = b["events"].event(data)
+class EventHandler:
+    def __init__(self):
+        self.output_text = ""
+
+    def process_event(self, cpu, data, size):
+        event = b["events"].event(data)
+        self.output_text += f"{datetime.now().strftime('%H:%M:%S')} | "
+        self.output_text += f"SRC: {print_ip(event.saddr):15} | "
+        self.output_text += f"DST: {print_ip(event.daddr):15} | "
+        self.output_text += f"SPORT: {event.sport:5} | "
+        self.output_text += f"DPORT: {event.dport:5} | "
+        self.output_text += f"PROTO: {'TCP' if event.protocol == 6 else 'UDP'}\n"
     
-    # 创建表格
-    table = PrettyTable()
-    table.field_names = ["Time", "Source IP", "Destination IP", "Source Port", "Destination Port", "Protocol"]
-    
-    # 添加数据
-    table.add_row([
-        datetime.now().strftime("%H:%M:%S"),
-        print_ip(event.saddr),
-        print_ip(event.daddr),
-        event.sport,
-        event.dport,
-        "TCP" if event.protocol == 6 else "UDP"
-    ])
-    
-    # Only print the new row of the table
-    print(table)
+    def print_output(self):
+        print(self.output_text)
+        self.output_text = ""
 
 def main():
-    parser = argparse.ArgumentParser(description="网络流量监控工具")
-    parser.add_argument("-i", "--interface", default="enp24s0f0", help="要监控的网络接口")
+    parser = argparse.ArgumentParser(description="traffic monitor")
+    parser.add_argument("-i", "--interface", default="enp24s0f0", help="network interface to monitor")
+    parser.add_argument("-o", "--output", default="output.log", help="output file")
     args = parser.parse_args()
 
     try:
-        # Compile and load BPF program
-        b = BPF(src_file="traffic.c", debug=0)
         ingress_fn = b.load_func("tc_ingress", BPF.SCHED_CLS)
         egress_fn = b.load_func("tc_egress", BPF.SCHED_CLS)
 
@@ -50,6 +50,7 @@ def main():
             ipr.tc("del", "ingress", idx, "ffff:")
             ipr.tc("del", "sfq", idx, "1:")
         except:
+            print("No old rules found.")
             pass
 
         # Attach BPF to ingress (receive path)
@@ -61,11 +62,17 @@ def main():
         ipr.tc("add", "sfq", idx, "1:")
         ipr.tc("add-filter", "bpf", idx, ":1", 
             fd=egress_fn.fd, name=egress_fn.name, parent="1:", action="ok", classid=1)
-        
         print(f"BPF attached to {args.interface}. Press Ctrl+C to exit.")
-        b["events"].open_perf_buffer(process_event)
+
+        # Start monitoring traffic
+        handler = EventHandler()
+        b["events"].open_perf_buffer(handler.process_event)
+        start_time = time.time()
         while True:
             b.perf_buffer_poll()
+            if time.time() - start_time > 15:
+                handler.print_output()
+                break
     except KeyboardInterrupt:
         print("Detaching BPF program...")
     finally:
