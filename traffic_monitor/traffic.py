@@ -5,6 +5,11 @@ from datetime import datetime
 import argparse
 from prettytable import PrettyTable
 from pyroute2 import IPRoute
+import time
+
+
+# Compile and load BPF program
+b = BPF(src_file="traffic.c", debug=0)
 ipr = IPRoute()
 
 def print_ip(ip):
@@ -37,8 +42,6 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Compile and load BPF program
-        b = BPF(src_file="traffic.c", debug=0)
         ingress_fn = b.load_func("tc_ingress", BPF.SCHED_CLS)
         egress_fn = b.load_func("tc_egress", BPF.SCHED_CLS)
 
@@ -50,6 +53,7 @@ def main():
             ipr.tc("del", "ingress", idx, "ffff:")
             ipr.tc("del", "sfq", idx, "1:")
         except:
+            print("No old rules found.")
             pass
 
         # Attach BPF to ingress (receive path)
@@ -62,10 +66,17 @@ def main():
         ipr.tc("add-filter", "bpf", idx, ":1", 
             fd=egress_fn.fd, name=egress_fn.name, parent="1:", action="ok", classid=1)
         
+        # ipr.tc("del", "ingress", idx, "ffff:")
+        # ipr.tc("del", "sfq", idx, "1:")
+        # exit()
+        
         print(f"BPF attached to {args.interface}. Press Ctrl+C to exit.")
         b["events"].open_perf_buffer(process_event)
+        start_time = time.time()
         while True:
             b.perf_buffer_poll()
+            if time.time() - start_time > 5:
+                break
     except KeyboardInterrupt:
         print("Detaching BPF program...")
     finally:
