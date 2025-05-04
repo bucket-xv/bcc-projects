@@ -3,10 +3,9 @@
 from bcc import BPF
 from datetime import datetime
 import argparse
-from prettytable import PrettyTable
 from pyroute2 import IPRoute
 import time
-
+import sys
 
 # Compile and load BPF program
 b = BPF(src_file="traffic.c", debug=0)
@@ -18,23 +17,13 @@ def print_ip(ip):
 
 def process_event(cpu, data, size):
     event = b["events"].event(data)
-    
-    # 创建表格
-    table = PrettyTable()
-    table.field_names = ["Time", "Source IP", "Destination IP", "Source Port", "Destination Port", "Protocol"]
-    
-    # 添加数据
-    table.add_row([
-        datetime.now().strftime("%H:%M:%S"),
-        print_ip(event.saddr),
-        print_ip(event.daddr),
-        event.sport,
-        event.dport,
-        "TCP" if event.protocol == 6 else "UDP"
-    ])
-    
-    # Only print the new row of the table
-    print(table)
+        
+    print(f"{datetime.now().strftime('%H:%M:%S')} | "
+            f"SRC: {print_ip(event.saddr):15} | "
+            f"DST: {print_ip(event.daddr):15} | "
+            f"SPORT: {event.sport:5} | "
+            f"DPORT: {event.dport:5} | "
+            f"PROTO: {'TCP' if event.protocol == 6 else 'UDP'}")
 
 def main():
     parser = argparse.ArgumentParser(description="网络流量监控工具")
@@ -73,9 +62,10 @@ def main():
         print(f"BPF attached to {args.interface}. Press Ctrl+C to exit.")
         b["events"].open_perf_buffer(process_event)
         start_time = time.time()
+        print("start watching traffic...")
         while True:
             b.perf_buffer_poll()
-            if time.time() - start_time > 5:
+            if time.time() - start_time > 15:
                 break
     except KeyboardInterrupt:
         print("Detaching BPF program...")
