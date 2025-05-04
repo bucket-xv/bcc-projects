@@ -13,21 +13,29 @@ ipr = IPRoute()
 
 def print_ip(ip):
     return ".".join([str(ip >> 24 & 0xff), str(ip >> 16 & 0xff), 
-                    str(ip >> 8 & 0xff), str(ip & 0xff)])
+             str(ip >> 8 & 0xff), str(ip & 0xff)])
 
-def process_event(cpu, data, size):
-    event = b["events"].event(data)
-        
-    print(f"{datetime.now().strftime('%H:%M:%S')} | "
-            f"SRC: {print_ip(event.saddr):15} | "
-            f"DST: {print_ip(event.daddr):15} | "
-            f"SPORT: {event.sport:5} | "
-            f"DPORT: {event.dport:5} | "
-            f"PROTO: {'TCP' if event.protocol == 6 else 'UDP'}")
+class EventHandler:
+    def __init__(self):
+        self.output_text = ""
+
+    def process_event(self, cpu, data, size):
+        event = b["events"].event(data)
+        self.output_text += f"{datetime.now().strftime('%H:%M:%S')} | "
+        self.output_text += f"SRC: {print_ip(event.saddr):15} | "
+        self.output_text += f"DST: {print_ip(event.daddr):15} | "
+        self.output_text += f"SPORT: {event.sport:5} | "
+        self.output_text += f"DPORT: {event.dport:5} | "
+        self.output_text += f"PROTO: {'TCP' if event.protocol == 6 else 'UDP'}\n"
+    
+    def print_output(self):
+        print(self.output_text)
+        self.output_text = ""
 
 def main():
-    parser = argparse.ArgumentParser(description="网络流量监控工具")
-    parser.add_argument("-i", "--interface", default="enp24s0f0", help="要监控的网络接口")
+    parser = argparse.ArgumentParser(description="traffic monitor")
+    parser.add_argument("-i", "--interface", default="enp24s0f0", help="network interface to monitor")
+    parser.add_argument("-o", "--output", default="output.log", help="output file")
     args = parser.parse_args()
 
     try:
@@ -54,18 +62,16 @@ def main():
         ipr.tc("add", "sfq", idx, "1:")
         ipr.tc("add-filter", "bpf", idx, ":1", 
             fd=egress_fn.fd, name=egress_fn.name, parent="1:", action="ok", classid=1)
-        
-        # ipr.tc("del", "ingress", idx, "ffff:")
-        # ipr.tc("del", "sfq", idx, "1:")
-        # exit()
-        
         print(f"BPF attached to {args.interface}. Press Ctrl+C to exit.")
-        b["events"].open_perf_buffer(process_event)
+
+        # Start monitoring traffic
+        handler = EventHandler()
+        b["events"].open_perf_buffer(handler.process_event)
         start_time = time.time()
-        print("start watching traffic...")
         while True:
             b.perf_buffer_poll()
             if time.time() - start_time > 15:
+                handler.print_output()
                 break
     except KeyboardInterrupt:
         print("Detaching BPF program...")
