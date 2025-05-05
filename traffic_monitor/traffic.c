@@ -11,7 +11,7 @@ typedef __u32 u32;
 typedef __u16 u16;
 typedef __u8 u8;
 
-#define AGGR_SIZE 16
+#define AGGR_SIZE 2
 
 struct data_t
 {
