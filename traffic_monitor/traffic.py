@@ -46,21 +46,20 @@ def main():
         
         # Clean up old rules
         try:
-            ipr.tc("del", "ingress", idx, "ffff:")
-            ipr.tc("del", "sfq", idx, "1:")
+            ipr.tc("del", "clsact", idx)
         except:
             print("No old rules found.")
             pass
 
-        # Attach BPF to ingress (receive path)
-        ipr.tc("add", "ingress", idx, "ffff:")
+        # Create clsact qdisc for the interface
+        ipr.tc("add", "clsact", idx) # tc qdisc add dev eth0 clsact
+
+        # Add filters to the clsact qdisc
         ipr.tc("add-filter", "bpf", idx, ":1", 
-            fd=ingress_fn.fd, name=ingress_fn.name, parent="ffff:", action="ok", classid=1)
+            fd=ingress_fn.fd, name=ingress_fn.name, parent="ffff:fff2", classid=1, direct_action=True)
+        ipr.tc("add-filter", "bpf", idx, ":1", 
+            fd=egress_fn.fd, name=egress_fn.name, parent="ffff:fff1", classid=1, direct_action=True)
         
-        # Attach BPF to egress (send path)
-        ipr.tc("add", "sfq", idx, "1:")
-        ipr.tc("add-filter", "bpf", idx, ":1", 
-            fd=egress_fn.fd, name=egress_fn.name, parent="1:", action="ok", classid=1)
         print(f"BPF attached to {args.interface}. Press Ctrl+C to exit.")
 
         # Start monitoring traffic
@@ -79,8 +78,7 @@ def main():
         # Cleanup: Remove tc rules
         if "idx" in locals():
             try:
-                ipr.tc("del", "ingress", idx, "ffff:")
-                ipr.tc("del", "sfq", idx, "1:")
+                ipr.tc("del", "clsact", idx)
             except:
                 pass
         print("BPF detached.")
