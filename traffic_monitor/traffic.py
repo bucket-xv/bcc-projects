@@ -35,7 +35,6 @@ class EventHandler:
 def main():
     parser = argparse.ArgumentParser(description="traffic monitor")
     parser.add_argument("-i", "--interface", default="enp24s0f0", help="network interface to monitor")
-    parser.add_argument("-o", "--output", default="output.log", help="output file")
     args = parser.parse_args()
 
     try:
