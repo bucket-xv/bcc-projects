@@ -56,9 +56,9 @@ def main():
 
         # Add filters to the clsact qdisc
         ipr.tc("add-filter", "bpf", idx, ":1", 
-            fd=ingress_fn.fd, name=ingress_fn.name, parent="ffff:fff2", classid=1, direct_action=True)
+            fd=ingress_fn.fd, name=ingress_fn.name, parent="ffff:fff2", direct_action=True)
         ipr.tc("add-filter", "bpf", idx, ":1", 
-            fd=egress_fn.fd, name=egress_fn.name, parent="ffff:fff1", classid=1, direct_action=True)
+            fd=egress_fn.fd, name=egress_fn.name, parent="ffff:fff1", direct_action=True)
         
         print(f"BPF attached to {args.interface}. Press Ctrl+C to exit.")
 
