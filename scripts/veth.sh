@@ -23,7 +23,3 @@ sudo ip netns exec blue ip route add 192.168.15.0/24 dev veth-blue
 # Ping
 sudo ip netns exec red ping 192.168.15.2
 sudo ip netns exec blue ping 192.168.15.1
-
-# Clean up
-sudo ip netns delete red
-sudo ip netns delete blue
