@@ -7,12 +7,14 @@ from pyroute2 import IPRoute
 import time
 import sys
 from pyroute2 import NetNS
+import socket
+import struct
 # Compile and load BPF program
 b = BPF(src_file="traffic.c", debug=0)
 
 def print_ip(ip):
-    return ".".join([str(ip >> 24 & 0xff), str(ip >> 16 & 0xff), 
-             str(ip >> 8 & 0xff), str(ip & 0xff)])
+    ip_int_be = struct.unpack('<I', struct.pack('>I', ip))[0]
+    return socket.inet_ntoa(struct.pack('!I', ip_int_be))
 
 class EventHandler:
     def __init__(self):
@@ -58,21 +60,21 @@ def main():
             # Add filters to the clsact qdisc
             ipr.tc("add-filter", "bpf", idx, ":1", 
                 fd=ingress_fn.fd, name=ingress_fn.name, parent="ffff:fff2", direct_action=True)
-            ipr.tc("add-filter", "bpf", idx, ":1", 
-                fd=egress_fn.fd, name=egress_fn.name, parent="ffff:fff1", direct_action=True)
+            # ipr.tc("add-filter", "bpf", idx, ":1", 
+            #     fd=egress_fn.fd, name=egress_fn.name, parent="ffff:fff1", direct_action=True)
             
             print(f"BPF attached to {args.interface}. Press Ctrl+C to exit.")
 
             # Start monitoring traffic
             handler = EventHandler()
             b["events"].open_perf_buffer(handler.process_event)
-            start_time = time.time()
+            # start_time = time.time()
             while True:
                 b.perf_buffer_poll()
                 # Note: This is to prevent the program from crashing
-                if time.time() - start_time > 15:
-                    handler.print_output()
-                    break
+                # if time.time() - start_time > 15:
+                handler.print_output()
+                # break
     except KeyboardInterrupt:
         print("Detaching BPF program...")
     finally:
