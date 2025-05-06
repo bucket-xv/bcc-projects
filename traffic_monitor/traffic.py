@@ -9,7 +9,6 @@ import sys
 from pyroute2 import NetNS
 # Compile and load BPF program
 b = BPF(src_file="traffic.c", debug=0)
-ipr = IPRoute()
 
 def print_ip(ip):
     return ".".join([str(ip >> 24 & 0xff), str(ip >> 16 & 0xff), 
@@ -42,7 +41,7 @@ def main():
         ingress_fn = b.load_func("tc_ingress", BPF.SCHED_CLS)
         egress_fn = b.load_func("tc_egress", BPF.SCHED_CLS)
 
-        with NetNS(args.namespace):
+        with NetNS(args.namespace) as ipr:
             # Look up the physical interface index
             idx = ipr.link_lookup(ifname=args.interface)[0]
             
