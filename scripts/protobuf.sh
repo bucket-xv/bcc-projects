@@ -15,4 +15,13 @@ echo 'export PATH=$PATH:$GOPATH/bin' >> $PROFILE_PATH
 source $PROFILE_PATH
 
 # Install Protobuf
+sudo apt update -y
 sudo apt install -y protobuf-compiler
+
+# Clone the repository
+git clone https://github.com/appnet-org/arpc.git
+cd arpc
+
+# Install the dependencies
+go mod tidy
+

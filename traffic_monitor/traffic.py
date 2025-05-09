@@ -38,7 +38,7 @@ class EventHandler:
         self.output_text += f"SPORT: {event.sport:5} | "
         self.output_text += f"DPORT: {event.dport:5} | "
         self.output_text += f"PROTOCOL: {protocol_str(event.protocol)} | "
-        self.output_text += f"PAYLOAD: {''.join(f'{chr(b)}' for b in event.payload)}\n"
+        self.output_text += f"PAYLOAD: {''.join(f'{b:02x}' for b in event.payload)}\n"
     
     def print_output(self):
         print(self.output_text)
