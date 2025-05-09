@@ -16,6 +16,16 @@ def print_ip(ip):
     ip_int_be = struct.unpack('<I', struct.pack('>I', ip))[0]
     return socket.inet_ntoa(struct.pack('!I', ip_int_be))
 
+def protocol_str(protocol):
+    if protocol == socket.IPPROTO_TCP:
+        return "TCP"
+    elif protocol == socket.IPPROTO_UDP:
+        return "UDP"
+    elif protocol == socket.IPPROTO_ICMP:
+        return "ICMP"
+    else:
+        return "UNKNOWN"
+    
 class EventHandler:
     def __init__(self):
         self.output_text = ""
@@ -27,7 +37,8 @@ class EventHandler:
         self.output_text += f"DST: {print_ip(event.daddr):15} | "
         self.output_text += f"SPORT: {event.sport:5} | "
         self.output_text += f"DPORT: {event.dport:5} | "
-        self.output_text += f"PROTO: {'TCP' if event.protocol == 6 else 'UDP'}\n"
+        self.output_text += f"PROTOCOL: {protocol_str(event.protocol)} | "
+        self.output_text += f"PAYLOAD: {''.join(f'{chr(b)}' for b in event.payload)}\n"
     
     def print_output(self):
         print(self.output_text)
@@ -40,8 +51,8 @@ def main():
     args = parser.parse_args()
 
     try:
-        ingress_fn = b.load_func("tc_ingress", BPF.SCHED_CLS)
-        egress_fn = b.load_func("tc_egress", BPF.SCHED_CLS)
+        ingress_fn = b.load_func("tc", BPF.SCHED_CLS)
+        egress_fn = b.load_func("tc", BPF.SCHED_CLS)
 
         with NetNS(args.namespace) as ipr:
             # Look up the physical interface index
@@ -60,8 +71,8 @@ def main():
             # Add filters to the clsact qdisc
             ipr.tc("add-filter", "bpf", idx, ":1", 
                 fd=ingress_fn.fd, name=ingress_fn.name, parent="ffff:fff2", direct_action=True)
-            # ipr.tc("add-filter", "bpf", idx, ":1", 
-            #     fd=egress_fn.fd, name=egress_fn.name, parent="ffff:fff1", direct_action=True)
+            ipr.tc("add-filter", "bpf", idx, ":1", 
+                fd=egress_fn.fd, name=egress_fn.name, parent="ffff:fff3", direct_action=True)
             
             print(f"BPF attached to {args.interface}. Press Ctrl+C to exit.")
 
